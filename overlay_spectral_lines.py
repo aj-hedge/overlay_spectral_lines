@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
-from matplotlib.text import Annotation
+import pickle
 import itertools
 from typing import Callable
 from types import NoneType
@@ -10,19 +9,20 @@ import sys,os,glob
 '''
 Author: A. J. Hedge
 Created: 5/04/2023
-Last Modified: 19/04/2023
+Last Modified: 20/04/2023
 Usage: Import into script and use non-static functions with own spectrum plotting and line emission catalogue file, or edit main() and run.
-Purpose: Take in spectrum files, get the associated redshift-solutions files and use knowledge bank of
+Purpose: Take in spectrum files, get the associated redshift-solutions files and use knowledge bank of (assuming simple harmonic oscillator)
         molecular vibrational emission lines to indicate where they would appear in the spectrum at each redshift solution.
 '''
 
 # Frequency transitions obtained from the ALMA Splatalogue and are in GHz (cut-off CDMS/JPL intensity > -7)
 
 # TODO:
-#       - Write a README, detail requirements (filenames and structure, line_catalogue copy and edit for different line plotting)
-#       - Changeable unit scale (hard-coded GHz right now)
+#       - Changeable unit scale (hard-coded GHz and mJy right now)
 #       - show_figures, save_figures implementation
 #       - better annotation height algorithm?
+#	- More flexible handling of line definitions read from the line_catalogue_file and extra_lines_file
+#		(e.g. if the user wants only extra_lines_file
 
 
 class SpectralLineOverlays(object):
@@ -64,7 +64,7 @@ class SpectralLineOverlays(object):
             Set to `True` if you want molecule names annotated next to their respective lines on the overlay (can get cluttered!).
         
         spectra_only : `bool`
-            Similar to when ax=None, this options when set to `True` uses the ungeneralised spectrum plotting function and does not add
+            Similar to when ax=None, this option when set to `True` uses the ungeneralised spectrum plotting function and does not add
             line overlays to it. Not intended for use when the user has provided an axes instance.
         
         show_figures : `bool`
@@ -78,6 +78,7 @@ class SpectralLineOverlays(object):
         # Main data
         self.line_catalogue_file = line_catalogue_file
         self.ax = ax
+        self.init_ax = pickle.dumps(self.ax)  # Necessary for deep-copy backup
         self.extra_lines_file = extra_lines_file
         self.product_directory = product_directory
         self.n_lines = n_lines
@@ -130,7 +131,7 @@ class SpectralLineOverlays(object):
             freq = np.arange(50,150,0.1)
             flux = np.random.randn(len(freq))
             source_name = 'Placeholder'
-            self.ax = self.plot_spectrum(self.ax,freq,flux,source_name)
+            self.ax, self.init_ax = self.plot_spectrum(self.ax,freq,flux,source_name)
 
 
     # Static methods
@@ -166,7 +167,7 @@ class SpectralLineOverlays(object):
         with open(fname,'r') as f:
             lines = f.readlines()
         # Parse catalogue file data
-        lines_data = [line.replace('\n','').split(' ') for line in lines]
+        lines_data = [line.replace('\n','').split(' ') for line in lines[n_headerlines:]]
         for dat in lines_data:
             dat[1] = float(dat[1])
         # Build up dictionary
@@ -177,11 +178,11 @@ class SpectralLineOverlays(object):
             out_dict[name] = [trans, col]
 
         return out_dict
-
+    
     @staticmethod
     def plot_spectrum(ax: plt.Axes, freq: np.ndarray, flux: np.ndarray, source_name: str=''):
         '''
-        Adds basic plot of the spectra to the Overlayer instance's stored axes (requires all parameters).
+        Adds basic plot of the spectra to the Overlayer instance's stored axes (strict parameters, units).
 
         Parameters
         ----------
@@ -198,19 +199,24 @@ class SpectralLineOverlays(object):
         -------
         ax : matplotlib.pyplot.Axes
             The modified axes from self.
+        init_ax_copy : matplotlib.pyplot.Axes
+            Deep-copy of ax from pickle dumping and loading (used for reloading initial axes prior to overlaying lines).
         '''
-        # Base spectrum plot
+        # Base spectrum plot, replaces current axes. Future version may use ax parameter more flexibly.
+        ax.remove()
         ax = plt.axes()
         ax.plot(freq,flux,'k',lw=0.5)
         ax.set_title(source_name)
         ax.set_xlabel("Frequency / GHz")
         ax.set_ylabel("Flux Density / mJy")
         ax.set_xlim([np.min(freq), np.max(freq)])
+        init_ax_copy = pickle.dumps(ax)
 
-        return ax
+        return ax, init_ax_copy
 
     @staticmethod
-    def handle_new_axes(curr_axes: plt.Axes, new_axes: plt.Axes, freq_data: np.ndarray, flux_data: np.ndarray, clean_overlay: bool=False, quiet: bool=False):
+    def handle_new_axes(curr_axes: plt.Axes, new_axes: plt.Axes, init_axes: plt.Axes, freq_data: np.ndarray, flux_data: np.ndarray,
+                        clean_overlay: bool=False, quiet: bool=False):
         '''
         Handles different cases when the user is starting a new plotting action which requires either a new axes, existing axes, or
         a new set of frequency and flux data to pass to the in-built spectrum plotting function. Optional cleaning of existing axes.
@@ -221,6 +227,8 @@ class SpectralLineOverlays(object):
             The existing axes in case nothing else is provided.
         new_axes : matplotlib.pyplot.Axes
             The new_axes to use instead.
+        init_axes : matplotlib.pyplot.Axes
+            Initial axes passed in case the axes need to be reset.
         freq_data : numpy.ndarray
             Vector of frequency data to pass to plot_spectrum if necessary.
         flux_data : numpy.ndarray
@@ -243,17 +251,18 @@ class SpectralLineOverlays(object):
                 if len(freq_data) != len(flux_data):
                     raise ValueError("Length of frequency (X) and flux (Y) data do not match!")
                 print("Updating axes with provided frequency and flux data.")
-                new_axes = SpectralLineOverlays.plot_spectrum(curr_axes,freq_data,flux_data)
+                new_axes, init_axes = SpectralLineOverlays.plot_spectrum(curr_axes,freq_data,flux_data)
             else:
                 print("Using existing axes stored in the Overlayer object. If this was not desired, check that the frequency " + \
                       "and/or flux data you provided are not None.")
                 if clean_overlay == True:
-                # Clean axes of vlines and annotations
-                    for child in curr_axes.get_children():
-                        if (isinstance(child,LineCollection) and child.get_gid() == 'spectral_line') or \
-                            (isinstance(child,Annotation) and child.get_gid() == 'spectral_line'):
-                            child.remove()
-                new_axes = curr_axes
+                    # Clean axes of vlines and annotations
+                    curr_axes.remove()
+                    new_axes = pickle.loads(init_axes)
+                else:
+                    new_axes = curr_axes
+        else:
+            curr_axes.remove()
         
         SpectralLineOverlays.enablePrint(quiet)
 
@@ -290,13 +299,13 @@ class SpectralLineOverlays(object):
         '''
         if type(n_range) != NoneType:
             for n, line in zip(n_range,f_shifted):
-                ax.axvline(line,alpha=alpha,lw=lw,color=colour,gid='spectral_line')
+                ax.axvline(line,alpha=alpha,lw=lw,color=colour)
                 if annotate:
-                    ax.annotate(molecule+f'({n}-{n-1})',(line,ax.get_ylim()[1]*(line % 10)/10),gid='spectral_line')
+                    ax.annotate(molecule+f'({n}-{n-1})',(line,ax.get_ylim()[1]*(line % 10)/10))
         else:
-            ax.axvline(f_shifted,alpha=alpha,lw=lw,color=colour,gid='spectral_line')
+            ax.axvline(f_shifted,alpha=alpha,lw=lw,color=colour)
             if annotate:
-                ax.annotate(molecule,(f_shifted,ax.get_ylim()[1]*(line % 10)/10),gid='spectral_line')
+                ax.annotate(molecule,(f_shifted,ax.get_ylim()[1]*(line % 10)/10))
 
         return ax
 
@@ -395,7 +404,7 @@ class SpectralLineOverlays(object):
         '''
         
         # Handle axes provided or generate if required and data is instead provided
-        self.ax = self.handle_new_axes(self.ax,new_axes,freq_data,flux_data,False,self.quiet)
+        self.ax = self.handle_new_axes(self.ax,new_axes,self.init_ax,freq_data,flux_data,False,self.quiet)
         
         annotate = self.annotate
 
@@ -432,10 +441,9 @@ class SpectralLineOverlays(object):
         '''
 
         # Handle axes provided or generate if required and data is instead provided
-        self.ax = self.handle_new_axes(self.ax,new_axes,freq_data,flux_data,True,self.quiet)
+        self.ax = self.handle_new_axes(self.ax,new_axes,self.init_ax,freq_data,flux_data,True,self.quiet)
 
         self.ax.set_title(title_name+f" z={z:.3f} solution")
-        plt.sca(self.ax)
         fig = plt.gcf()
         fig.set_size_inches(12,5)
 
@@ -484,7 +492,6 @@ def main():
             
             # save file
             plt.savefig(product_directory + "spectra/"+filename+f".z_{z_in}_lines.png",dpi=100)
-            plt.clf()
 
 
 if __name__ == '__main__':
