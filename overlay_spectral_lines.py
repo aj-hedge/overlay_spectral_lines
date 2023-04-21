@@ -21,7 +21,7 @@ Purpose: Take in spectrum files, get the associated redshift-solutions files and
 #       - Changeable unit scale (hard-coded GHz and mJy right now)
 #       - show_figures, save_figures implementation
 #       - better annotation height algorithm?
-#	- More flexible handling of line definitions read from the line_catalogue_file and extra_lines_file
+#	    - More flexible handling of line definitions read from the line_catalogue_file and extra_lines_file
 #		(e.g. if the user wants only extra_lines_file
 
 
@@ -117,13 +117,13 @@ class SpectralLineOverlays(object):
             n_lines = len(self.vibrational_molecules.keys())
         if n_lines > len(self.vibrational_molecules.keys()):
             n_lines = len(self.vibrational_molecules.keys())
-        if self.extra_lines_file != None and n_lines * 2 > self.extra_molecules.keys():
-            n_lines = np.floor(len(self.extra_molecules.keys())/2)
+        # if self.extra_lines_file != None and n_lines * 2 > self.extra_molecules.keys():
+        #     n_lines = np.floor(len(self.extra_molecules.keys())/2)
 
         # Slice dictionaries by n_lines if not None
         self.vibrational_molecules = dict(itertools.islice(self.vibrational_molecules.items(),0,n_lines))
-        if self.extra_lines_file != None:
-            self.extra_molecules = dict(itertools.islice(self.extra_molecules.items(),0,2*n_lines))
+        # if self.extra_lines_file != None:
+        #     self.extra_molecules = dict(itertools.islice(self.extra_molecules.items(),0,2*n_lines))
 
         # If no axes given, create a randomised dummy spectrum
         if self.ax == None:
