@@ -55,6 +55,8 @@ The required file structure to use this code is defined by the relative path to 
 - `spectra/` directory for output figures by the code (to be implemented, save in your own script for now)
 - `relative/path/to/line_catalogue` files (the string you provide as the filename can be just the filename if it is in the
   products directory, or a relative path *from* the products directory followed by the filename.)
+  * the contents of your `line_catalogue` files must contain columns of data formatted as: \<annotation name> \<frequency> \<matplotlib colour>
+  so that it is parsed correctly by the Overlayer (see example `vibrational_line_catalogue.dat` which works with the example code).
 
 It is expected that you will read in your own spectrum data wherever it may be in your preferred way, and either format
 it to be compatible when providing it to the Overlayer, or create your own base spectrum plot to provide to the Overlayer.
@@ -63,7 +65,7 @@ it to be compatible when providing it to the Overlayer, or create your own base 
 You may want to try running the `example_script.py` file and understand how it is interfacing with the Overlayer instance
 in each of the demos. A short explanation is as follows,
 
-Import as <from> `overlay_spectral_lines` <import> `SpectralLineOverlays`
+Import as: `from overlay_spectral_lines import SpectralLineOverlays`
 
 You can then initialise an instance of the Overlayer using the class definition (supplying as many parameters as necessary
 for your needs): `slo = SpectralLineOverlays(params...)`
