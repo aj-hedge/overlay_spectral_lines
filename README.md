@@ -56,7 +56,7 @@ The required file structure to use this code is defined by the relative path to 
 - `relative/path/to/line_catalogue` files (the string you provide as the filename can be just the filename if it is in the
   products directory, or a relative path *from* the products directory followed by the filename.)
   * the contents of your `line_catalogue` files must contain columns of data formatted as: \<annotation name> \<frequency> \<matplotlib colour>
-  so that it is parsed correctly by the Overlayer (see example `vibrational_line_catalogue.dat` which works with the example code).
+  so that it is parsed correctly by the Overlayer (see example `rotational_line_catalogue.dat` which works with the example code).
 
 It is expected that you will read in your own spectrum data wherever it may be in your preferred way, and either format
 it to be compatible when providing it to the Overlayer, or create your own base spectrum plot to provide to the Overlayer.
