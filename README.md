@@ -91,7 +91,7 @@ cannot guarantee I will get round to them!
 - [ ] Changeable unit scale (hard-coded GHz and mJy right now)
 - [ ] show_figures, save_figures implementation
 - [ ] better annotation height algorithm
-- [ ] More flexible handling of line definitions read from the line_catalogue_file and extra_lines_file
+- [x] More flexible handling of line definitions read from the line_catalogue_file and extra_lines_file
      (e.g. if the user wants only extra_lines_file)
 
 # Acknowledging this work
