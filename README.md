@@ -93,6 +93,7 @@ cannot guarantee I will get round to them!
 - [ ] better annotation height algorithm
 - [x] More flexible handling of line definitions read from the line_catalogue_file and extra_lines_file
      (e.g. if the user wants only extra_lines_file)
+- [x] Function for determining redshift solution(s) that ensure a requested molecule's line(s) appear at a specific frequency.
 
 # Acknowledging this work
 As per the BSD 3-Clause License, you may not use my name to *endorse or promote* products derived of this work, but I do
