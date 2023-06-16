@@ -9,7 +9,7 @@ import sys,os,glob
 '''
 Author: A. J. Hedge
 Created: 5/04/2023
-Last Modified: 2/05/2023
+Last Modified: 16/06/2023
 Usage: Import into script and use non-static functions with own spectrum plotting and line emission catalogue file, or edit main() and run.
 Purpose: Take in spectrum files, get the associated redshift-solutions files and use knowledge bank of (assuming simple harmonic oscillator)
         molecular rotational emission lines to indicate where they would appear in the spectrum at each redshift solution.
@@ -143,9 +143,11 @@ class SpectralLineOverlays(object):
             exit()
 
         if self.line_catalogue_file != None:
-            self.rotational_molecules = self.read_line_catalogue(self.rotational_molecules, self.line_catalogue_file,self.cat_header_lines)
+            self.rotational_molecules = self.read_line_catalogue(self.rotational_molecules,
+                                                                 self.product_directory + self.line_catalogue_file,self.cat_header_lines)
         if self.extra_lines_file != None:
-            self.extra_molecules = self.read_line_catalogue(self.extra_molecules, self.extra_lines_file,self.cat_header_lines)
+            self.extra_molecules = self.read_line_catalogue(self.extra_molecules,
+                                                            self.product_directory + self.extra_lines_file,self.cat_header_lines)
         
 
         # Avoid unnecessary index out of bounds errors when the user clearly wants all lines (but specified more)
@@ -516,6 +518,74 @@ class SpectralLineOverlays(object):
                 self.ax = self.plot_wrapper(self.fs_transitions,fs,z,mol,colour)
 
         return self.ax
+
+    def redshifts_of_manual_line(self, mol_name: str, freq_placement: float, z_range: tuple[float,float]) -> list:
+        '''
+        Precursor function to running the usual Overlayer functions to determine the redshift solutions if manually
+        placing an emission line at a given frequency.
+
+        Parameters
+        ----------
+        mol_name : str
+            Name of the molecule/transition as defined in one of the emission line catalogues.
+        freq_placement : float
+            Frequency at which the aforementioned emission line(s) are expected to appear.
+        z_range : tuple (float)
+            Range of redshifts to allow solutions for where z_range = (z_lower, z_upper).
+        
+        Returns
+        -------
+        z_sol : list (float)
+            List of possible redshift solutions that result in the specified molecule's emission line(s) appearing at the
+            specified frequency, confined to a range of redshifts.
+        '''
+        # Setup and validate inputs
+        z_sol = []
+        if freq_placement <= 0:
+            raise ValueError("Placement frequency must be positive (and matching units of line catalogue).")
+        if z_range[0] < 0 or z_range[1] < 0:
+            raise ValueError("Range of allowed redshift solutions cannot include negatives.")
+        if z_range[1] < z_range[0]:
+            flip = z_range[1]
+            z_range[1] = z_range[0]
+            z_range[0] = flip
+        
+        # Parse molecule name
+        if mol_name in self.rotational_molecules:
+            ftransition = self.rotational_molecules[mol_name][0]
+            harmonic = True
+        elif mol_name in self.extra_molecules:
+            ftransition = self.extra_molecules[mol_name][0]
+            harmonic = False
+        else:
+            raise NameError(f"{mol_name} does not exist in any of the loaded emission line catalogues.")
+
+        # Check valid combination will result in non-empty list of redshift solutions
+        if ftransition < freq_placement and harmonic == False:
+            raise ValueError(f"Specific transition frequencies cannot be less than placement frequency.\n{mol_name}: {ftransition} < {freq_placement}")
+        if ftransition / (1+z_range[1]) > freq_placement and harmonic == False:
+            raise ValueError(f"Specific transition frequency at highest redshift still greater than placement frequency, yielding no solutions." +
+                             f"\n{mol_name}: {ftransition} / (1+{z_range[1]}) > {freq_placement}")
+        if ftransition / (1+z_range[1]) > freq_placement and harmonic == True:
+            raise ValueError(f"First (lowest) transition frequency at highest redshift still greater than placement frequency, yielding no solutions." +
+                             f"\n{mol_name}: {ftransition} / (1+{z_range[1]}) > {freq_placement}")
+
+        # Case for specific transition frequency
+        if harmonic == False:
+            z_sol.append(ftransition / freq_placement - 1)
+        # Case for rotational emission with first transition frequency
+        else:
+            n_lower = int(np.floor(freq_placement / ftransition * (1+z_range[0])))
+            n_upper = int(np.floor(freq_placement / ftransition * (1+z_range[1])))  # np.floor since we do not want to exceed z_range[1]
+
+            for n in np.arange(n_lower,n_upper+1,1):
+                z_sol.append(n * ftransition / freq_placement - 1)
+
+        if len(z_sol) == 0:
+            raise ValueError(f"Combination of inputs passed checks but yielded no solutions. Consider making z_range larger.")
+
+        return z_sol
+
 
 
 # TEMPLATE MAIN when called as script (fill in appropriate values yourself)
